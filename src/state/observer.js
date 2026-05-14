@@ -24,5 +24,3 @@ export class Observer {
     return this.state;
   }
 }
-
-// so far, listener is a function.. from state?
