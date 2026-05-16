@@ -12,7 +12,6 @@ const TokenType = {
 function tokenizeJSX(input) {
   const tokens = [];
   let i = 0;
-  let insideString = false;
   let insideTag = false;
 
   const isWhiteSpace = (c) => /\s/.test(c);
@@ -22,7 +21,7 @@ function tokenizeJSX(input) {
     const c = input[i];
 
     if (!insideTag) {
-      if (input.startWith("</", i)) {
+      if (input.startsWith("</", i)) {
         tokens.push({ type: TokenType.ClosingTagOpen, value: "</" });
         i += 2;
         insideTag = true;
@@ -114,39 +113,177 @@ function tokenizeJSX(input) {
   return tokens;
 }
 
-export function compileJSXtoJS(jsx) {
-  let tag = "";
-  let tagStarted = false;
-  let children = "";
-  let childrenStarted = false;
+function generateAST(tokens) {
+  // {
+  //   type: "Root",
+  //   children: [
+  //     {
+  //   type: "Element",
+  //   tag: "div",
+  //   props: {
+  //     class: "container}
+  //   },
+  //   children: [
+  //     {
+  //       type: "Text",
+  //       value: "Hello world"
+  //     }
+  //   ]
+  //  }
+  // }
 
-  const specialSymbolsSet = new Set(['"', "\\"]);
+  const root = { type: "Root", children: [] };
+  const stack = [root];
+  let i = 0;
 
-  for (let i = 0; i < jsx.length; i++) {
-    const c = jsx[i];
-    if (c === "<" && childrenStarted) {
-      break;
-    }
-    if (c === "<") {
-      tagStarted = true;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    const currentParent = stack[stack.length - 1];
+
+    if (token.type === TokenType.Text) {
+      currentParent.children.push({
+        type: "Text",
+        value: token.value,
+      });
+      i += 1;
       continue;
     }
 
-    if (c === ">") {
-      tagStarted = false;
-      childrenStarted = true;
-      continue;
-    }
-    if (tagStarted) {
-      tag += c;
-    }
-    if (childrenStarted) {
-      if (specialSymbolsSet.has(c)) {
-        children += "\\";
+    if (token.type === TokenType.TagOpen) {
+      i += 1;
+      const tagToken = tokens[i];
+
+      if (!tagToken || tagToken.type !== TokenType.Identifier) {
+        throw new Error("Expected tag name after <");
       }
-      children += c;
+
+      const elementNode = {
+        type: "Element",
+        tag: tagToken.value,
+        props: {},
+        children: [],
+      };
+
+      i += 1;
+
+      while (
+        i < tokens.length &&
+        tokens[i].type !== TokenType.TagClose &&
+        tokens[i].type !== TokenType.TagSlashClose
+      ) {
+        const attrNameToken = tokens[i];
+
+        if (attrNameToken.type !== TokenType.Identifier) {
+          throw new Error("Expected attribute name");
+        }
+
+        const attrName = attrNameToken.value;
+        const nextToken = tokens[i + 1];
+
+        if (nextToken && nextToken.type === TokenType.Equals) {
+          const valueToken = tokens[i + 2];
+
+          if (!valueToken || valueToken.type !== TokenType.String) {
+            throw new Error("Expected string value for attribute");
+          }
+
+          elementNode.props[attrName] = valueToken.value;
+          i += 3;
+        } else {
+          elementNode.props[attrName] = true;
+          i += 1;
+        }
+      }
+
+      currentParent.children.push(elementNode);
+
+      if (tokens[i] && tokens[i].type === TokenType.TagSlashClose) {
+        i += 1;
+        continue;
+      }
+
+      if (tokens[i] && tokens[i].type === TokenType.TagClose) {
+        i += 1;
+        stack.push(elementNode);
+        continue;
+      }
+    }
+
+    if (token.type === TokenType.ClosingTagOpen) {
+      i += 1;
+
+      const tagToken = tokens[i];
+
+      if (!tagToken || tagToken.type !== TokenType.Identifier) {
+        throw new Error("Expected tag name after </");
+      }
+
+      const closingTagName = tagToken.value;
+      const currentParent = stack.pop();
+
+      if (currentParent.tag !== closingTagName) {
+        throw new Error(
+          `Mismatched closing tag: expected </${currentParent.tag}> but found </${closingTagName}>`,
+        );
+      }
+
+      i += 1;
+
+      if (!tokens[i] || tokens[i].type !== TokenType.TagClose) {
+        throw new Error("Expected > after closing tag name");
+      }
+
+      i += 1;
+      continue;
     }
   }
-  const childrenStr = children ? `"${children}"` : "null";
-  return `h("${tag}", null, ${childrenStr})`;
+
+  if (stack.length !== 1) {
+    throw new Error("Unclosed tags detected");
+  }
+
+  return root;
 }
+
+const tokens = tokenizeJSX(
+  '<div class="container">Hello <span>world</span></div>',
+);
+const ast = generateAST(tokens);
+console.log(JSON.stringify(ast, null, 2));
+
+// export function compileJSXtoJS(jsx) {
+//   let tag = "";
+//   let tagStarted = false;
+//   let children = "";
+//   let childrenStarted = false;
+
+//   const specialSymbolsSet = new Set(['"', "\\"]);
+
+//   for (let i = 0; i < jsx.length; i++) {
+//     const c = jsx[i];
+//     if (c === "<" && childrenStarted) {
+//       break;
+//     }
+//     if (c === "<") {
+//       tagStarted = true;
+//       continue;
+//     }
+
+//     if (c === ">") {
+//       tagStarted = false;
+//       childrenStarted = true;
+//       continue;
+//     }
+//     if (tagStarted) {
+//       tag += c;
+//     }
+//     if (childrenStarted) {
+//       if (specialSymbolsSet.has(c)) {
+//         children += "\\";
+//       }
+//       children += c;
+//     }
+//   }
+//   const childrenStr = children ? `"${children}"` : "null";
+//   return `h("${tag}", null, ${childrenStr})`;
+// }
