@@ -1,5 +1,9 @@
 import { h } from "./compiler/h";
-import { compileJSXtoJS } from "./compiler/compiler";
+import {
+  tokenizeJSX,
+  generateAST,
+  generateCodeFromAST,
+} from "./compiler/compiler";
 import { Observer } from "./state/observer";
 
 const root = document.querySelector("#app");
@@ -17,13 +21,17 @@ input.addEventListener("input", (e) => {
 
 function render() {
   const jsx = `<h1>Hello ${observer.getState().name}</h1>`;
-  const code = compileJSXtoJS(jsx);
+  const tokens = tokenizeJSX(jsx);
+  const ast = generateAST(tokens);
+  const code = generateCodeFromAST(ast);
+
   const fn = new Function("h", `return ${code}`);
   const result = fn(h);
 
   root.innerHTML = "";
   root.appendChild(result);
   root.appendChild(input);
+  input.focus();
 }
 
 render();

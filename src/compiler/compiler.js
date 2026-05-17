@@ -9,7 +9,7 @@ const TokenType = {
   Text: "Text", // Hello world
 };
 
-function tokenizeJSX(input) {
+export function tokenizeJSX(input) {
   const tokens = [];
   let i = 0;
   let insideTag = false;
@@ -113,7 +113,7 @@ function tokenizeJSX(input) {
   return tokens;
 }
 
-function generateAST(tokens) {
+export function generateAST(tokens) {
   // {
   //   type: "Root",
   //   children: [
@@ -245,45 +245,29 @@ function generateAST(tokens) {
   return root;
 }
 
-const tokens = tokenizeJSX(
-  '<div class="container">Hello <span>world</span></div>',
-);
+export function generateCodeFromAST(ast) {
+  if (ast.children.length !== 1) {
+    throw new Error("Multiple root elements are not supported");
+  }
+
+  return emitNode(ast.children[0]);
+}
+
+function emitNode(node) {
+  switch (node.type) {
+    case "Text":
+      return JSON.stringify(node.value);
+    case "Element":
+      const children = node.children.map(emitNode).join(", ");
+      return `h(${JSON.stringify(node.tag)}, ${JSON.stringify(node.props)}, [${children}])`;
+    default:
+      throw new Error(`Unknown node type: ${node.type}`);
+  }
+}
+
+const jsx = '<div class="container">Hello <span>world</span></div>';
+const tokens = tokenizeJSX(jsx);
 const ast = generateAST(tokens);
-console.log(JSON.stringify(ast, null, 2));
+const code = generateCodeFromAST(ast);
 
-// export function compileJSXtoJS(jsx) {
-//   let tag = "";
-//   let tagStarted = false;
-//   let children = "";
-//   let childrenStarted = false;
-
-//   const specialSymbolsSet = new Set(['"', "\\"]);
-
-//   for (let i = 0; i < jsx.length; i++) {
-//     const c = jsx[i];
-//     if (c === "<" && childrenStarted) {
-//       break;
-//     }
-//     if (c === "<") {
-//       tagStarted = true;
-//       continue;
-//     }
-
-//     if (c === ">") {
-//       tagStarted = false;
-//       childrenStarted = true;
-//       continue;
-//     }
-//     if (tagStarted) {
-//       tag += c;
-//     }
-//     if (childrenStarted) {
-//       if (specialSymbolsSet.has(c)) {
-//         children += "\\";
-//       }
-//       children += c;
-//     }
-//   }
-//   const childrenStr = children ? `"${children}"` : "null";
-//   return `h("${tag}", null, ${childrenStr})`;
-// }
+console.log(code);
