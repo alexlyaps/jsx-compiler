@@ -1,17 +1,22 @@
 import { h } from "./compiler/h";
-import {
-  tokenizeJSX,
-  generateAST,
-  generateCodeFromAST,
-} from "./compiler/compiler";
+import { compileJSXtoJS } from "./compiler/compiler";
 import { Observer } from "./state/observer";
+import { render } from "./runtime/render";
 
 const root = document.querySelector("#app");
 
 const observer = new Observer({ name: "Alex" });
 observer.subscribe(render);
 
-const input = document.createElement("input");
+const jsx = `<div class="container">Hello <span>Alex</span><input id="name" /></div>`;
+
+const jsCode = compileJSXtoJS(jsx);
+console.log(jsCode);
+
+const fn = new Function("h", `return ${jsCode}`);
+const result = fn(h);
+
+const input = result.querySelector("#name");
 
 input.addEventListener("input", (e) => {
   const value = e.target.value;
@@ -19,19 +24,4 @@ input.addEventListener("input", (e) => {
   observer.setState({ name: value });
 });
 
-function render() {
-  const jsx = `<h1>Hello ${observer.getState().name}</h1>`;
-  const tokens = tokenizeJSX(jsx);
-  const ast = generateAST(tokens);
-  const code = generateCodeFromAST(ast);
-
-  const fn = new Function("h", `return ${code}`);
-  const result = fn(h);
-
-  root.innerHTML = "";
-  root.appendChild(result);
-  root.appendChild(input);
-  input.focus();
-}
-
-render();
+render(result, root);

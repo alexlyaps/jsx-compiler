@@ -265,9 +265,8 @@ function emitNode(node) {
   }
 }
 
-const jsx = '<div class="container">Hello <span>world</span></div>';
-const tokens = tokenizeJSX(jsx);
-const ast = generateAST(tokens);
-const code = generateCodeFromAST(ast);
-
-console.log(code);
+export function compileJSXtoJS(jsx) {
+  const tokens = tokenizeJSX(jsx);
+  const ast = generateAST(tokens);
+  return generateCodeFromAST(ast);
+}
